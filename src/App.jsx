@@ -23,6 +23,7 @@ function App() {
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
   const isGamePlaying = useRef(false)
+  const finalGameTime = useRef(0)
   const movementThreshold = 0.5 // Adjust this value to change sensitivity
   const holdingThreshold = 0.05 // Reduced threshold for detecting if phone is being held
   const sampleRate = 100 // Sample every 100ms
@@ -186,6 +187,7 @@ function App() {
     setGameState('countdown')
     setCountdown(3)
     setGameTime(0)
+    finalGameTime.current = 0
     
     // Start countdown
     const countdownInterval = setInterval(() => {
@@ -205,9 +207,16 @@ function App() {
 
   const startGameTimer = () => {
     isGamePlaying.current = true
+    console.log('Starting game timer')
     const gameInterval = setInterval(() => {
       if (isGamePlaying.current) {
-        setGameTime(prev => prev + 0.1)
+        setGameTime(prev => {
+          const newTime = prev + 0.1
+          console.log('Timer tick:', newTime.toFixed(1))
+          return newTime
+        })
+      } else {
+        console.log('Timer stopped - game not playing')
       }
     }, 100)
     
@@ -215,6 +224,16 @@ function App() {
   }
 
   const endGame = (reason) => {
+    // Prevent multiple calls
+    if (!isGamePlaying.current) {
+      return
+    }
+    
+    console.log('Game ending:', reason, 'Time:', gameTime)
+    
+    // Store the final time immediately
+    finalGameTime.current = gameTime
+    
     // Stop the game immediately
     isGamePlaying.current = false
     
@@ -228,8 +247,8 @@ function App() {
     }
     
     // Update best time if this was a new record
-    if (gameTime > bestTime) {
-      setBestTime(gameTime)
+    if (finalGameTime.current > bestTime) {
+      setBestTime(finalGameTime.current)
     }
     
     setGameState(reason) // 'won' or 'lost'
@@ -250,6 +269,7 @@ function App() {
     setGameState('idle')
     setCountdown(3)
     setGameTime(0)
+    finalGameTime.current = 0
   }
 
   useEffect(() => {
@@ -398,7 +418,7 @@ function App() {
                 }}>
                   🎉 NEW RECORD! 🎉
                 </div>
-                <p>You held still for {gameTime.toFixed(1)} seconds!</p>
+                <p>You held still for {finalGameTime.current.toFixed(1)} seconds!</p>
                 <p>That's a new personal best!</p>
                 <button 
                   onClick={resetGame}
@@ -433,8 +453,8 @@ function App() {
                   💥 GAME OVER 💥
                 </div>
                 <p>You moved or put the phone down!</p>
-                <p>Time survived: {gameTime.toFixed(1)} seconds</p>
-                {gameTime > bestTime && (
+                <p>Time survived: {finalGameTime.current.toFixed(1)} seconds</p>
+                {finalGameTime.current > bestTime && (
                   <p style={{ color: '#28a745', fontWeight: 'bold' }}>
                     🎉 New personal best!
                   </p>
