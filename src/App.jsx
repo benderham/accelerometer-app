@@ -12,10 +12,20 @@ function App() {
   const [apiTest, setApiTest] = useState('')
   const [debugMode, setDebugMode] = useState(false)
   
+  // Game state
+  const [gameMode, setGameMode] = useState(false)
+  const [gameState, setGameState] = useState('idle') // 'idle', 'countdown', 'playing', 'won', 'lost'
+  const [countdown, setCountdown] = useState(3)
+  const [gameTime, setGameTime] = useState(0)
+  const [bestTime, setBestTime] = useState(0)
+  const [gameTimer, setGameTimer] = useState(null)
+  const [countdownTimer, setCountdownTimer] = useState(null)
+  
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
   const movementThreshold = 0.5 // Adjust this value to change sensitivity
   const holdingThreshold = 0.05 // Reduced threshold for detecting if phone is being held
   const sampleRate = 100 // Sample every 100ms
+  const gameMovementThreshold = 0.3 // Stricter threshold for the game
 
   const testAPIs = () => {
     let testResults = '=== API Availability Test ===\n'
@@ -74,6 +84,14 @@ function App() {
       setIsMoving(true)
     } else {
       setIsMoving(false)
+    }
+
+    // Game logic - check for game loss conditions
+    if (gameState === 'playing') {
+      // Lose if phone is not being held OR if there's too much movement
+      if (!isHolding || totalDelta > gameMovementThreshold) {
+        endGame('lost')
+      }
     }
 
     // Detect if phone is being held (improved logic)
@@ -161,6 +179,73 @@ function App() {
     setDebugInfo('')
   }
 
+  // Game functions
+  const startGame = () => {
+    setGameMode(true)
+    setGameState('countdown')
+    setCountdown(3)
+    setGameTime(0)
+    
+    // Start countdown
+    const countdownInterval = setInterval(() => {
+      setCountdown(prev => {
+        if (prev <= 1) {
+          clearInterval(countdownInterval)
+          setGameState('playing')
+          startGameTimer()
+          return 0
+        }
+        return prev - 1
+      })
+    }, 1000)
+    
+    setCountdownTimer(countdownInterval)
+  }
+
+  const startGameTimer = () => {
+    const gameInterval = setInterval(() => {
+      setGameTime(prev => {
+        return prev + 0.1
+      })
+    }, 100)
+    
+    setGameTimer(gameInterval)
+  }
+
+  const endGame = (reason) => {
+    if (gameTimer) {
+      clearInterval(gameTimer)
+      setGameTimer(null)
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      setCountdownTimer(null)
+    }
+    
+    // Update best time if this was a new record
+    if (gameTime > bestTime) {
+      setBestTime(gameTime)
+    }
+    
+    setGameState(reason) // 'won' or 'lost'
+    setGameMode(false)
+  }
+
+  const resetGame = () => {
+    if (gameTimer) {
+      clearInterval(gameTimer)
+      setGameTimer(null)
+    }
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      setCountdownTimer(null)
+    }
+    setGameMode(false)
+    setGameState('idle')
+    setCountdown(3)
+    setGameTime(0)
+  }
+
   useEffect(() => {
     // Run API test on mount
     testAPIs()
@@ -168,6 +253,16 @@ function App() {
     // Try to auto-request permission on mount
     console.log('App mounted, current permission state:', permission)
     requestPermission()
+
+    // Cleanup function to clear timers
+    return () => {
+      if (gameTimer) {
+        clearInterval(gameTimer)
+      }
+      if (countdownTimer) {
+        clearInterval(countdownTimer)
+      }
+    }
   }, [])
 
   const getStatusColor = () => {
@@ -209,6 +304,155 @@ function App() {
             {debugMode ? '🔒 Hide Debug Info' : '🔓 Show Debug Info'}
           </button>
         </div>
+
+        {/* Game Mode Section */}
+        {permission === 'granted' && !error && (
+          <div style={{
+            background: '#f8f9fa',
+            padding: '20px',
+            margin: '20px 0',
+            borderRadius: '12px',
+            border: '2px solid #dee2e6',
+            textAlign: 'center'
+          }}>
+            <h2>🎮 Hold Still Challenge</h2>
+            <p>Hold your phone perfectly still for as long as possible!</p>
+            
+            {gameState === 'idle' && (
+              <div>
+                <p><strong>Best Time:</strong> {bestTime.toFixed(1)} seconds</p>
+                <button 
+                  onClick={startGame}
+                  style={{
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    padding: '12px 24px',
+                    borderRadius: '25px',
+                    cursor: 'pointer',
+                    fontSize: '16px',
+                    fontWeight: 'bold',
+                    margin: '10px'
+                  }}
+                >
+                  🚀 Start Challenge
+                </button>
+              </div>
+            )}
+
+            {gameState === 'countdown' && (
+              <div style={{
+                fontSize: '48px',
+                fontWeight: 'bold',
+                color: '#dc3545',
+                margin: '20px 0'
+              }}>
+                {countdown}
+              </div>
+            )}
+
+            {gameState === 'playing' && (
+              <div style={{
+                background: '#d4edda',
+                padding: '15px',
+                borderRadius: '8px',
+                border: '2px solid #c3e6cb'
+              }}>
+                <div style={{
+                  fontSize: '24px',
+                  fontWeight: 'bold',
+                  color: '#155724',
+                  marginBottom: '10px'
+                }}>
+                  ⏱️ {gameTime.toFixed(1)}s
+                </div>
+                <div style={{
+                  fontSize: '16px',
+                  color: '#6c757d',
+                  marginBottom: '10px'
+                }}>
+                  Best: {bestTime.toFixed(1)}s
+                </div>
+                <p style={{ marginTop: '10px', fontSize: '14px' }}>
+                  💡 Keep your phone still and don't put it down!
+                </p>
+              </div>
+            )}
+
+            {gameState === 'won' && (
+              <div style={{
+                background: '#d4edda',
+                padding: '20px',
+                borderRadius: '8px',
+                border: '2px solid #c3e6cb'
+              }}>
+                <div style={{
+                  fontSize: '36px',
+                  marginBottom: '10px'
+                }}>
+                  🎉 NEW RECORD! 🎉
+                </div>
+                <p>You held still for {gameTime.toFixed(1)} seconds!</p>
+                <p>That's a new personal best!</p>
+                <button 
+                  onClick={resetGame}
+                  style={{
+                    background: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '20px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    margin: '5px'
+                  }}
+                >
+                  🏆 Play Again
+                </button>
+              </div>
+            )}
+
+            {gameState === 'lost' && (
+              <div style={{
+                background: '#f8d7da',
+                padding: '20px',
+                borderRadius: '8px',
+                border: '2px solid #f5c6cb'
+              }}>
+                <div style={{
+                  fontSize: '36px',
+                  marginBottom: '10px'
+                }}>
+                  💥 GAME OVER 💥
+                </div>
+                <p>You moved or put the phone down!</p>
+                <p>Time survived: {gameTime.toFixed(1)} seconds</p>
+                {gameTime > bestTime && (
+                  <p style={{ color: '#28a745', fontWeight: 'bold' }}>
+                    🎉 New personal best!
+                  </p>
+                )}
+                <button 
+                  onClick={resetGame}
+                  style={{
+                    background: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    padding: '10px 20px',
+                    borderRadius: '20px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 'bold',
+                    margin: '5px'
+                  }}
+                >
+                  🔄 Try Again
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         
         {/* API Test Results - Only show in debug mode */}
         {debugMode && (
