@@ -14,7 +14,7 @@ function App() {
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
   const movementThreshold = 0.5 // Adjust this value to change sensitivity
-  const holdingThreshold = 0.1 // Threshold for detecting if phone is being held
+  const holdingThreshold = 0.05 // Reduced threshold for detecting if phone is being held
   const sampleRate = 100 // Sample every 100ms
 
   const testAPIs = () => {
@@ -76,17 +76,26 @@ function App() {
       setIsMoving(false)
     }
 
-    // Detect if phone is being held (check for gravity variations)
-    const gravityVariation = Math.abs(currentAccel.x) + Math.abs(currentAccel.y) + Math.abs(currentAccel.z)
+    // Detect if phone is being held (improved logic)
+    const gravityMagnitude = Math.sqrt(currentAccel.x * currentAccel.x + currentAccel.y * currentAccel.y + currentAccel.z * currentAccel.z)
     const expectedGravity = 9.8 // Earth's gravity in m/s²
     
-    // If gravity reading is close to expected and there's some variation, likely being held
-    if (Math.abs(gravityVariation - expectedGravity) < 2 && totalDelta > holdingThreshold) {
+    // More sophisticated holding detection
+    const gravityDeviation = Math.abs(gravityMagnitude - expectedGravity)
+    const hasReasonableGravity = gravityDeviation < 3 // Allow for some variation in gravity readings
+    const hasSomeActivity = totalDelta > holdingThreshold || gravityDeviation > 0.5 // Either movement or gravity variation
+    
+    // Phone is likely being held if:
+    // 1. Gravity reading is reasonable (not too far from 9.8 m/s²)
+    // 2. There's some activity (either movement or gravity variation from hand holding)
+    if (hasReasonableGravity && hasSomeActivity) {
       setIsHolding(true)
-    } else if (totalDelta < holdingThreshold) {
-      // If very little movement, likely not being held
+    } else if (totalDelta < holdingThreshold && gravityDeviation < 0.5) {
+      // Only set to false if there's very little movement AND gravity is very stable
+      // This prevents false negatives when holding still
       setIsHolding(false)
     }
+    // If conditions are ambiguous, maintain current state
 
     lastAcceleration.current = currentAccel
   }
