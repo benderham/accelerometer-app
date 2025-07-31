@@ -1,0 +1,291 @@
+import { useState, useEffect, useRef } from 'react'
+import './App.css'
+
+function App() {
+  const [isMoving, setIsMoving] = useState(false)
+  const [isHolding, setIsHolding] = useState(false)
+  const [acceleration, setAcceleration] = useState({ x: 0, y: 0, z: 0 })
+  const [permission, setPermission] = useState('prompt')
+  const [error, setError] = useState(null)
+  const [isRequesting, setIsRequesting] = useState(false)
+  const [debugInfo, setDebugInfo] = useState('')
+  const [apiTest, setApiTest] = useState('')
+  
+  const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
+  const movementThreshold = 0.5 // Adjust this value to change sensitivity
+  const holdingThreshold = 0.1 // Threshold for detecting if phone is being held
+  const sampleRate = 100 // Sample every 100ms
+
+  const testAPIs = () => {
+    let testResults = '=== API Availability Test ===\n'
+    
+    // Test Device Motion API
+    testResults += `DeviceMotionEvent: ${typeof DeviceMotionEvent !== 'undefined' ? '✅ Available' : '❌ Not Available'}\n`
+    
+    if (typeof DeviceMotionEvent !== 'undefined') {
+      testResults += `requestPermission function: ${typeof DeviceMotionEvent.requestPermission === 'function' ? '✅ Available' : '❌ Not Available'}\n`
+    }
+    
+    // Test Device Orientation API
+    testResults += `DeviceOrientationEvent: ${typeof DeviceOrientationEvent !== 'undefined' ? '✅ Available' : '❌ Not Available'}\n`
+    
+    if (typeof DeviceOrientationEvent !== 'undefined') {
+      testResults += `requestPermission function: ${typeof DeviceOrientationEvent.requestPermission === 'function' ? '✅ Available' : '❌ Not Available'}\n`
+    }
+    
+    // Test Permissions API
+    testResults += `Permissions API: ${typeof navigator.permissions !== 'undefined' ? '✅ Available' : '❌ Not Available'}\n`
+    
+    // Test User Agent
+    testResults += `User Agent: ${navigator.userAgent}\n`
+    
+    // Test HTTPS
+    testResults += `HTTPS: ${window.location.protocol === 'https:' ? '✅ Yes' : '❌ No (HTTP)'}\n`
+    
+    // Test Local Network
+    testResults += `Local Network: ${window.location.hostname.includes('localhost') || window.location.hostname.includes('192.168') ? '✅ Yes' : '❌ No'}\n`
+    
+    setApiTest(testResults)
+  }
+
+  const handleMotion = (event) => {
+    const { accelerationIncludingGravity } = event
+    
+    if (!accelerationIncludingGravity) return
+
+    const currentAccel = {
+      x: accelerationIncludingGravity.x || 0,
+      y: accelerationIncludingGravity.y || 0,
+      z: accelerationIncludingGravity.z || 0
+    }
+
+    setAcceleration(currentAccel)
+
+    // Calculate movement by comparing current acceleration to previous
+    const deltaX = Math.abs(currentAccel.x - lastAcceleration.current.x)
+    const deltaY = Math.abs(currentAccel.y - lastAcceleration.current.y)
+    const deltaZ = Math.abs(currentAccel.z - lastAcceleration.current.z)
+    
+    const totalDelta = deltaX + deltaY + deltaZ
+
+    // Detect movement
+    if (totalDelta > movementThreshold) {
+      setIsMoving(true)
+    } else {
+      setIsMoving(false)
+    }
+
+    // Detect if phone is being held (check for gravity variations)
+    const gravityVariation = Math.abs(currentAccel.x) + Math.abs(currentAccel.y) + Math.abs(currentAccel.z)
+    const expectedGravity = 9.8 // Earth's gravity in m/s²
+    
+    // If gravity reading is close to expected and there's some variation, likely being held
+    if (Math.abs(gravityVariation - expectedGravity) < 2 && totalDelta > holdingThreshold) {
+      setIsHolding(true)
+    } else if (totalDelta < holdingThreshold) {
+      // If very little movement, likely not being held
+      setIsHolding(false)
+    }
+
+    lastAcceleration.current = currentAccel
+  }
+
+  const requestPermission = async () => {
+    setIsRequesting(true)
+    setError(null)
+    let debug = 'Starting permission request...\n'
+    
+    try {
+      // Check if Device Motion API is supported
+      if (!window.DeviceMotionEvent) {
+        debug += 'DeviceMotionEvent not supported\n'
+        throw new Error('Device Motion API not supported on this device/browser')
+      }
+      
+      debug += 'DeviceMotionEvent is supported\n'
+
+      // For iOS devices, we need to request permission
+      if (typeof DeviceMotionEvent.requestPermission === 'function') {
+        debug += 'requestPermission function exists - iOS device detected\n'
+        console.log('Requesting motion permission...')
+        const permission = await DeviceMotionEvent.requestPermission()
+        debug += `Permission result: ${permission}\n`
+        console.log('Permission result:', permission)
+        setPermission(permission)
+        
+        if (permission === 'granted') {
+          debug += 'Permission granted, adding motion listener\n'
+          window.addEventListener('devicemotion', handleMotion)
+        } else {
+          debug += 'Permission denied\n'
+          setError('Permission denied for device motion')
+        }
+      } else {
+        // For devices that don't require permission (Android, older iOS)
+        debug += 'No permission required - Android or older iOS\n'
+        console.log('No permission required, adding motion listener...')
+        setPermission('granted')
+        window.addEventListener('devicemotion', handleMotion)
+      }
+    } catch (err) {
+      debug += `Error: ${err.message}\n`
+      console.error('Error requesting permission:', err)
+      setError(err.message)
+    } finally {
+      setIsRequesting(false)
+      setDebugInfo(debug)
+    }
+  }
+
+  const handleUserGesture = () => {
+    // This function will be called when user taps the button
+    // iOS requires a user gesture to request permissions
+    if (!isRequesting) {
+      requestPermission()
+    }
+  }
+
+  const resetPermission = () => {
+    setPermission('prompt')
+    setError(null)
+    setDebugInfo('')
+  }
+
+  useEffect(() => {
+    // Run API test on mount
+    testAPIs()
+    
+    // Try to auto-request permission on mount
+    console.log('App mounted, current permission state:', permission)
+    requestPermission()
+  }, [])
+
+  const getStatusColor = () => {
+    if (!isHolding) return '#ff6b6b' // Red - not holding
+    if (isMoving) return '#51cf66' // Green - moving
+    return '#ffd43b' // Yellow - holding but not moving
+  }
+
+  const getStatusText = () => {
+    if (!isHolding) return 'Phone not being held'
+    if (isMoving) return 'Moving'
+    return 'Holding (stationary)'
+  }
+
+  return (
+    <div className="App">
+      <div className="container">
+        <h1>📱 Accelerometer Movement Detector</h1>
+        
+        {/* API Test Results */}
+        <div style={{ 
+          background: '#e8f5e8', 
+          padding: '15px', 
+          margin: '15px 0', 
+          borderRadius: '8px', 
+          fontSize: '12px',
+          textAlign: 'left',
+          fontFamily: 'monospace',
+          border: '2px solid #4caf50'
+        }}>
+          <strong>🔍 iOS 18.5 API Compatibility Test:</strong><br/>
+          <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{apiTest}</pre>
+        </div>
+        
+        {/* Debug info */}
+        <div style={{ 
+          background: '#f0f0f0', 
+          padding: '10px', 
+          margin: '10px 0', 
+          borderRadius: '8px', 
+          fontSize: '12px',
+          textAlign: 'left',
+          fontFamily: 'monospace'
+        }}>
+          <strong>Debug Info:</strong><br/>
+          Permission: {permission}<br/>
+          Error: {error || 'none'}<br/>
+          Is Requesting: {isRequesting ? 'yes' : 'no'}<br/>
+          DeviceMotionEvent exists: {window.DeviceMotionEvent ? 'yes' : 'no'}<br/>
+          requestPermission function: {typeof DeviceMotionEvent?.requestPermission === 'function' ? 'yes' : 'no'}<br/>
+          <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{debugInfo}</pre>
+        </div>
+        
+        {error && (
+          <div className="error">
+            <p>Error: {error}</p>
+            <p>Permission was denied. You can try again or check your Safari settings.</p>
+            <button 
+              onClick={resetPermission}
+              className="permission-button"
+              style={{ marginTop: '10px' }}
+            >
+              Try Again
+            </button>
+          </div>
+        )}
+
+        {permission === 'prompt' && !error && (
+          <div className="permission-prompt">
+            <p>This app needs access to your device's motion sensors.</p>
+            <p>Tap the button below to request permission:</p>
+            <button 
+              onClick={handleUserGesture}
+              disabled={isRequesting}
+              className="permission-button"
+            >
+              {isRequesting ? 'Requesting...' : 'Allow Motion Access'}
+            </button>
+            <p><small>On iOS, you may need to tap this button to trigger the permission prompt.</small></p>
+          </div>
+        )}
+
+        {permission === 'granted' && !error && (
+          <>
+            <div 
+              className="status-indicator"
+              style={{ backgroundColor: getStatusColor() }}
+            >
+              <h2>{getStatusText()}</h2>
+            </div>
+
+            <div className="stats">
+              <div className="stat-card">
+                <h3>Acceleration Data</h3>
+                <div className="accel-values">
+                  <div>X: {acceleration.x?.toFixed(2) || '0.00'} m/s²</div>
+                  <div>Y: {acceleration.y?.toFixed(2) || '0.00'} m/s²</div>
+                  <div>Z: {acceleration.z?.toFixed(2) || '0.00'} m/s²</div>
+                </div>
+              </div>
+
+              <div className="stat-card">
+                <h3>Status</h3>
+                <div className="status-list">
+                  <div className={`status-item ${isHolding ? 'active' : ''}`}>
+                    📱 Holding: {isHolding ? 'Yes' : 'No'}
+                  </div>
+                  <div className={`status-item ${isMoving ? 'active' : ''}`}>
+                    🏃 Moving: {isMoving ? 'Yes' : 'No'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="instructions">
+              <h3>How it works:</h3>
+              <ul>
+                <li>🟢 <strong>Green:</strong> Phone is being held and moving</li>
+                <li>🟡 <strong>Yellow:</strong> Phone is being held but stationary</li>
+                <li>🔴 <strong>Red:</strong> Phone is not being held (likely placed down)</li>
+              </ul>
+              <p><em>Try moving your phone around, then place it on a table to see the difference!</em></p>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default App
