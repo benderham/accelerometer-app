@@ -22,6 +22,7 @@ function App() {
   const [countdownTimer, setCountdownTimer] = useState(null)
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
+  const isGamePlaying = useRef(false)
   const movementThreshold = 0.5 // Adjust this value to change sensitivity
   const holdingThreshold = 0.05 // Reduced threshold for detecting if phone is being held
   const sampleRate = 100 // Sample every 100ms
@@ -203,16 +204,20 @@ function App() {
   }
 
   const startGameTimer = () => {
+    isGamePlaying.current = true
     const gameInterval = setInterval(() => {
-      setGameTime(prev => {
-        return prev + 0.1
-      })
+      if (isGamePlaying.current) {
+        setGameTime(prev => prev + 0.1)
+      }
     }, 100)
     
     setGameTimer(gameInterval)
   }
 
   const endGame = (reason) => {
+    // Stop the game immediately
+    isGamePlaying.current = false
+    
     if (gameTimer) {
       clearInterval(gameTimer)
       setGameTimer(null)
@@ -232,6 +237,7 @@ function App() {
   }
 
   const resetGame = () => {
+    isGamePlaying.current = false
     if (gameTimer) {
       clearInterval(gameTimer)
       setGameTimer(null)
