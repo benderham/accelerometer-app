@@ -10,6 +10,7 @@ function App() {
   const [isRequesting, setIsRequesting] = useState(false)
   const [debugInfo, setDebugInfo] = useState('')
   const [apiTest, setApiTest] = useState('')
+  const [debugMode, setDebugMode] = useState(false)
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
   const movementThreshold = 0.5 // Adjust this value to change sensitivity
@@ -177,39 +178,66 @@ function App() {
       <div className="container">
         <h1>📱 Accelerometer Movement Detector</h1>
         
-        {/* API Test Results */}
+        {/* Debug Mode Toggle */}
         <div style={{ 
-          background: '#e8f5e8', 
-          padding: '15px', 
-          margin: '15px 0', 
-          borderRadius: '8px', 
-          fontSize: '12px',
-          textAlign: 'left',
-          fontFamily: 'monospace',
-          border: '2px solid #4caf50'
+          margin: '15px 0',
+          textAlign: 'center'
         }}>
-          <strong>🔍 iOS 18.5 API Compatibility Test:</strong><br/>
-          <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{apiTest}</pre>
+          <button 
+            onClick={() => setDebugMode(!debugMode)}
+            style={{
+              background: debugMode ? '#ff6b6b' : '#4caf50',
+              color: 'white',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '14px',
+              fontWeight: 'bold',
+              transition: 'background-color 0.3s'
+            }}
+          >
+            {debugMode ? '🔒 Hide Debug Info' : '🔓 Show Debug Info'}
+          </button>
         </div>
         
-        {/* Debug info */}
-        <div style={{ 
-          background: '#f0f0f0', 
-          padding: '10px', 
-          margin: '10px 0', 
-          borderRadius: '8px', 
-          fontSize: '12px',
-          textAlign: 'left',
-          fontFamily: 'monospace'
-        }}>
-          <strong>Debug Info:</strong><br/>
-          Permission: {permission}<br/>
-          Error: {error || 'none'}<br/>
-          Is Requesting: {isRequesting ? 'yes' : 'no'}<br/>
-          DeviceMotionEvent exists: {window.DeviceMotionEvent ? 'yes' : 'no'}<br/>
-          requestPermission function: {typeof DeviceMotionEvent?.requestPermission === 'function' ? 'yes' : 'no'}<br/>
-          <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{debugInfo}</pre>
-        </div>
+        {/* API Test Results - Only show in debug mode */}
+        {debugMode && (
+          <div style={{ 
+            background: '#e8f5e8', 
+            padding: '15px', 
+            margin: '15px 0', 
+            borderRadius: '8px', 
+            fontSize: '12px',
+            textAlign: 'left',
+            fontFamily: 'monospace',
+            border: '2px solid #4caf50'
+          }}>
+            <strong>🔍 iOS 18.5 API Compatibility Test:</strong><br/>
+            <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{apiTest}</pre>
+          </div>
+        )}
+        
+        {/* Debug info - Only show in debug mode */}
+        {debugMode && (
+          <div style={{ 
+            background: '#f0f0f0', 
+            padding: '10px', 
+            margin: '10px 0', 
+            borderRadius: '8px', 
+            fontSize: '12px',
+            textAlign: 'left',
+            fontFamily: 'monospace'
+          }}>
+            <strong>Debug Info:</strong><br/>
+            Permission: {permission}<br/>
+            Error: {error || 'none'}<br/>
+            Is Requesting: {isRequesting ? 'yes' : 'no'}<br/>
+            DeviceMotionEvent exists: {window.DeviceMotionEvent ? 'yes' : 'no'}<br/>
+            requestPermission function: {typeof DeviceMotionEvent?.requestPermission === 'function' ? 'yes' : 'no'}<br/>
+            <pre style={{ marginTop: '10px', whiteSpace: 'pre-wrap' }}>{debugInfo}</pre>
+          </div>
+        )}
         
         {error && (
           <div className="error">
