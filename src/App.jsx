@@ -12,16 +12,9 @@ function App() {
   const [apiTest, setApiTest] = useState('')
   const [debugMode, setDebugMode] = useState(false)
   
-  // Simple game state
-  const [gameActive, setGameActive] = useState(false)
-  const [gameTime, setGameTime] = useState(0)
-  const [bestTime, setBestTime] = useState(0)
-  
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
-  const gameTimer = useRef(null)
   const movementThreshold = 0.5
   const holdingThreshold = 0.05
-  const gameMovementThreshold = 0.3
 
   const testAPIs = () => {
     let testResults = '=== API Availability Test ===\n'
@@ -94,43 +87,7 @@ function App() {
       setIsHolding(false)
     }
 
-    // Game logic - simple check
-    if (gameActive && (!isHolding || totalDelta > gameMovementThreshold)) {
-      endGame()
-    }
-
     lastAcceleration.current = currentAccel
-  }
-
-  const startGame = () => {
-    setGameActive(true)
-    setGameTime(0)
-    
-    gameTimer.current = setInterval(() => {
-      setGameTime(prev => prev + 0.1)
-    }, 100)
-  }
-
-  const endGame = () => {
-    if (gameTimer.current) {
-      clearInterval(gameTimer.current)
-      gameTimer.current = null
-    }
-    
-    if (gameTime > bestTime) {
-      setBestTime(gameTime)
-    }
-    
-    setGameActive(false)
-  }
-
-  const resetGame = () => {
-    if (gameTimer.current) {
-      clearInterval(gameTimer.current)
-      gameTimer.current = null
-    }
-    setGameActive(false)
-    setGameTime(0)
   }
 
   const requestPermission = async () => {
@@ -193,12 +150,6 @@ function App() {
     testAPIs()
     console.log('App mounted, current permission state:', permission)
     requestPermission()
-
-    return () => {
-      if (gameTimer.current) {
-        clearInterval(gameTimer.current)
-      }
-    }
   }, [])
 
   const getStatusColor = () => {
@@ -240,105 +191,6 @@ function App() {
             {debugMode ? '🔒 Hide Debug Info' : '🔓 Show Debug Info'}
           </button>
         </div>
-
-        {/* Game Mode Section */}
-        {permission === 'granted' && !error && (
-          <div style={{
-            background: '#f8f9fa',
-            padding: '20px',
-            margin: '20px 0',
-            borderRadius: '12px',
-            border: '2px solid #dee2e6',
-            textAlign: 'center'
-          }}>
-            <h2>🎮 Hold Still Challenge</h2>
-            <p>Hold your phone perfectly still for as long as possible!</p>
-            
-            {!gameActive && (
-              <div>
-                <p><strong>Best Time:</strong> {bestTime.toFixed(1)} seconds</p>
-                <button 
-                  onClick={startGame}
-                  style={{
-                    background: '#28a745',
-                    color: 'white',
-                    border: 'none',
-                    padding: '12px 24px',
-                    borderRadius: '25px',
-                    cursor: 'pointer',
-                    fontSize: '16px',
-                    fontWeight: 'bold',
-                    margin: '10px'
-                  }}
-                >
-                  🚀 Start Challenge
-                </button>
-              </div>
-            )}
-
-            {gameActive && (
-              <div style={{
-                background: '#d4edda',
-                padding: '15px',
-                borderRadius: '8px',
-                border: '2px solid #c3e6cb'
-              }}>
-                <div style={{
-                  fontSize: '24px',
-                  fontWeight: 'bold',
-                  color: '#155724',
-                  marginBottom: '10px'
-                }}>
-                  ⏱️ {gameTime.toFixed(1)}s
-                </div>
-                <div style={{
-                  fontSize: '16px',
-                  color: '#6c757d',
-                  marginBottom: '10px'
-                }}>
-                  Best: {bestTime.toFixed(1)}s
-                </div>
-                <p style={{ marginTop: '10px', fontSize: '14px' }}>
-                  💡 Keep your phone still and don't put it down!
-                </p>
-              </div>
-            )}
-
-            {!gameActive && gameTime > 0 && (
-              <div style={{
-                background: gameTime > bestTime ? '#d4edda' : '#f8d7da',
-                padding: '20px',
-                borderRadius: '8px',
-                border: gameTime > bestTime ? '2px solid #c3e6cb' : '2px solid #f5c6cb'
-              }}>
-                <div style={{
-                  fontSize: '36px',
-                  marginBottom: '10px'
-                }}>
-                  {gameTime > bestTime ? '🎉 NEW RECORD! 🎉' : '💥 GAME OVER 💥'}
-                </div>
-                <p>Time: {gameTime.toFixed(1)} seconds</p>
-                {gameTime > bestTime && <p>That's a new personal best!</p>}
-                <button 
-                  onClick={resetGame}
-                  style={{
-                    background: gameTime > bestTime ? '#28a745' : '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    padding: '10px 20px',
-                    borderRadius: '20px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    margin: '5px'
-                  }}
-                >
-                  {gameTime > bestTime ? '🏆 Play Again' : '🔄 Try Again'}
-                </button>
-              </div>
-            )}
-          </div>
-        )}
         
         {/* API Test Results - Only show in debug mode */}
         {debugMode && (
