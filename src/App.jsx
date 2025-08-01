@@ -12,22 +12,16 @@ function App() {
   const [apiTest, setApiTest] = useState('')
   const [debugMode, setDebugMode] = useState(false)
   
-  // Game state
-  const [gameMode, setGameMode] = useState(false)
-  const [gameState, setGameState] = useState('idle') // 'idle', 'countdown', 'playing', 'won', 'lost'
-  const [countdown, setCountdown] = useState(3)
+  // Simple game state
+  const [gameActive, setGameActive] = useState(false)
   const [gameTime, setGameTime] = useState(0)
   const [bestTime, setBestTime] = useState(0)
-  const [gameTimer, setGameTimer] = useState(null)
-  const [countdownTimer, setCountdownTimer] = useState(null)
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
-  const isGamePlaying = useRef(false)
-  const finalGameTime = useRef(0)
-  const movementThreshold = 0.5 // Adjust this value to change sensitivity
-  const holdingThreshold = 0.05 // Reduced threshold for detecting if phone is being held
-  const sampleRate = 100 // Sample every 100ms
-  const gameMovementThreshold = 0.3 // Stricter threshold for the game
+  const gameTimer = useRef(null)
+  const movementThreshold = 0.5
+  const holdingThreshold = 0.05
+  const gameMovementThreshold = 0.3
 
   const testAPIs = () => {
     let testResults = '=== API Availability Test ===\n'
@@ -74,11 +68,10 @@ function App() {
 
     setAcceleration(currentAccel)
 
-    // Calculate movement by comparing current acceleration to previous
+    // Calculate movement
     const deltaX = Math.abs(currentAccel.x - lastAcceleration.current.x)
     const deltaY = Math.abs(currentAccel.y - lastAcceleration.current.y)
     const deltaZ = Math.abs(currentAccel.z - lastAcceleration.current.z)
-    
     const totalDelta = deltaX + deltaY + deltaZ
 
     // Detect movement
@@ -88,36 +81,56 @@ function App() {
       setIsMoving(false)
     }
 
-    // Game logic - check for game loss conditions
-    if (gameState === 'playing') {
-      // Lose if phone is not being held OR if there's too much movement
-      if (!isHolding || totalDelta > gameMovementThreshold) {
-        endGame('lost')
-      }
-    }
-
-    // Detect if phone is being held (improved logic)
+    // Detect if phone is being held
     const gravityMagnitude = Math.sqrt(currentAccel.x * currentAccel.x + currentAccel.y * currentAccel.y + currentAccel.z * currentAccel.z)
-    const expectedGravity = 9.8 // Earth's gravity in m/s²
-    
-    // More sophisticated holding detection
+    const expectedGravity = 9.8
     const gravityDeviation = Math.abs(gravityMagnitude - expectedGravity)
-    const hasReasonableGravity = gravityDeviation < 3 // Allow for some variation in gravity readings
-    const hasSomeActivity = totalDelta > holdingThreshold || gravityDeviation > 0.5 // Either movement or gravity variation
+    const hasReasonableGravity = gravityDeviation < 3
+    const hasSomeActivity = totalDelta > holdingThreshold || gravityDeviation > 0.5
     
-    // Phone is likely being held if:
-    // 1. Gravity reading is reasonable (not too far from 9.8 m/s²)
-    // 2. There's some activity (either movement or gravity variation from hand holding)
     if (hasReasonableGravity && hasSomeActivity) {
       setIsHolding(true)
     } else if (totalDelta < holdingThreshold && gravityDeviation < 0.5) {
-      // Only set to false if there's very little movement AND gravity is very stable
-      // This prevents false negatives when holding still
       setIsHolding(false)
     }
-    // If conditions are ambiguous, maintain current state
+
+    // Game logic - simple check
+    if (gameActive && (!isHolding || totalDelta > gameMovementThreshold)) {
+      endGame()
+    }
 
     lastAcceleration.current = currentAccel
+  }
+
+  const startGame = () => {
+    setGameActive(true)
+    setGameTime(0)
+    
+    gameTimer.current = setInterval(() => {
+      setGameTime(prev => prev + 0.1)
+    }, 100)
+  }
+
+  const endGame = () => {
+    if (gameTimer.current) {
+      clearInterval(gameTimer.current)
+      gameTimer.current = null
+    }
+    
+    if (gameTime > bestTime) {
+      setBestTime(gameTime)
+    }
+    
+    setGameActive(false)
+  }
+
+  const resetGame = () => {
+    if (gameTimer.current) {
+      clearInterval(gameTimer.current)
+      gameTimer.current = null
+    }
+    setGameActive(false)
+    setGameTime(0)
   }
 
   const requestPermission = async () => {
@@ -126,7 +139,6 @@ function App() {
     let debug = 'Starting permission request...\n'
     
     try {
-      // Check if Device Motion API is supported
       if (!window.DeviceMotionEvent) {
         debug += 'DeviceMotionEvent not supported\n'
         throw new Error('Device Motion API not supported on this device/browser')
@@ -134,7 +146,6 @@ function App() {
       
       debug += 'DeviceMotionEvent is supported\n'
 
-      // For iOS devices, we need to request permission
       if (typeof DeviceMotionEvent.requestPermission === 'function') {
         debug += 'requestPermission function exists - iOS device detected\n'
         console.log('Requesting motion permission...')
@@ -151,7 +162,6 @@ function App() {
           setError('Permission denied for device motion')
         }
       } else {
-        // For devices that don't require permission (Android, older iOS)
         debug += 'No permission required - Android or older iOS\n'
         console.log('No permission required, adding motion listener...')
         setPermission('granted')
@@ -168,8 +178,6 @@ function App() {
   }
 
   const handleUserGesture = () => {
-    // This function will be called when user taps the button
-    // iOS requires a user gesture to request permissions
     if (!isRequesting) {
       requestPermission()
     }
@@ -181,120 +189,22 @@ function App() {
     setDebugInfo('')
   }
 
-  // Game functions
-  const startGame = () => {
-    setGameMode(true)
-    setGameState('countdown')
-    setCountdown(3)
-    setGameTime(0)
-    finalGameTime.current = 0
-    
-    // Start countdown
-    const countdownInterval = setInterval(() => {
-      setCountdown(prev => {
-        if (prev <= 1) {
-          clearInterval(countdownInterval)
-          setGameState('playing')
-          startGameTimer()
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-    
-    setCountdownTimer(countdownInterval)
-  }
-
-  const startGameTimer = () => {
-    isGamePlaying.current = true
-    console.log('Starting game timer')
-    const gameInterval = setInterval(() => {
-      if (isGamePlaying.current) {
-        setGameTime(prev => {
-          const newTime = prev + 0.1
-          console.log('Timer tick:', newTime.toFixed(1))
-          return newTime
-        })
-      } else {
-        console.log('Timer stopped - game not playing')
-      }
-    }, 100)
-    
-    setGameTimer(gameInterval)
-  }
-
-  const endGame = (reason) => {
-    // Prevent multiple calls
-    if (!isGamePlaying.current) {
-      return
-    }
-    
-    console.log('Game ending:', reason, 'Time:', gameTime)
-    
-    // Store the final time immediately
-    finalGameTime.current = gameTime
-    
-    // Stop the game immediately
-    isGamePlaying.current = false
-    
-    if (gameTimer) {
-      clearInterval(gameTimer)
-      setGameTimer(null)
-    }
-    if (countdownTimer) {
-      clearInterval(countdownTimer)
-      setCountdownTimer(null)
-    }
-    
-    // Update best time if this was a new record
-    if (finalGameTime.current > bestTime) {
-      setBestTime(finalGameTime.current)
-    }
-    
-    setGameState(reason) // 'won' or 'lost'
-    setGameMode(false)
-  }
-
-  const resetGame = () => {
-    isGamePlaying.current = false
-    if (gameTimer) {
-      clearInterval(gameTimer)
-      setGameTimer(null)
-    }
-    if (countdownTimer) {
-      clearInterval(countdownTimer)
-      setCountdownTimer(null)
-    }
-    setGameMode(false)
-    setGameState('idle')
-    setCountdown(3)
-    setGameTime(0)
-    finalGameTime.current = 0
-  }
-
   useEffect(() => {
-    // Run API test on mount
     testAPIs()
-    
-    // Try to auto-request permission on mount
     console.log('App mounted, current permission state:', permission)
     requestPermission()
 
-    // Cleanup function to clear timers
     return () => {
-      if (gameTimer) {
-        clearInterval(gameTimer)
-      }
-      if (countdownTimer) {
-        clearInterval(countdownTimer)
+      if (gameTimer.current) {
+        clearInterval(gameTimer.current)
       }
     }
   }, [])
 
   const getStatusColor = () => {
-    if (!isHolding) return '#ff6b6b' // Red - not holding
-    if (isMoving) return '#51cf66' // Green - moving
-    return '#ffd43b' // Yellow - holding but not moving
+    if (!isHolding) return '#ff6b6b'
+    if (isMoving) return '#51cf66'
+    return '#ffd43b'
   }
 
   const getStatusText = () => {
@@ -344,7 +254,7 @@ function App() {
             <h2>🎮 Hold Still Challenge</h2>
             <p>Hold your phone perfectly still for as long as possible!</p>
             
-            {gameState === 'idle' && (
+            {!gameActive && (
               <div>
                 <p><strong>Best Time:</strong> {bestTime.toFixed(1)} seconds</p>
                 <button 
@@ -366,18 +276,7 @@ function App() {
               </div>
             )}
 
-            {gameState === 'countdown' && (
-              <div style={{
-                fontSize: '48px',
-                fontWeight: 'bold',
-                color: '#dc3545',
-                margin: '20px 0'
-              }}>
-                {countdown}
-              </div>
-            )}
-
-            {gameState === 'playing' && (
+            {gameActive && (
               <div style={{
                 background: '#d4edda',
                 padding: '15px',
@@ -405,25 +304,25 @@ function App() {
               </div>
             )}
 
-            {gameState === 'won' && (
+            {!gameActive && gameTime > 0 && (
               <div style={{
-                background: '#d4edda',
+                background: gameTime > bestTime ? '#d4edda' : '#f8d7da',
                 padding: '20px',
                 borderRadius: '8px',
-                border: '2px solid #c3e6cb'
+                border: gameTime > bestTime ? '2px solid #c3e6cb' : '2px solid #f5c6cb'
               }}>
                 <div style={{
                   fontSize: '36px',
                   marginBottom: '10px'
                 }}>
-                  🎉 NEW RECORD! 🎉
+                  {gameTime > bestTime ? '🎉 NEW RECORD! 🎉' : '💥 GAME OVER 💥'}
                 </div>
-                <p>You held still for {finalGameTime.current.toFixed(1)} seconds!</p>
-                <p>That's a new personal best!</p>
+                <p>Time: {gameTime.toFixed(1)} seconds</p>
+                {gameTime > bestTime && <p>That's a new personal best!</p>}
                 <button 
                   onClick={resetGame}
                   style={{
-                    background: '#28a745',
+                    background: gameTime > bestTime ? '#28a745' : '#dc3545',
                     color: 'white',
                     border: 'none',
                     padding: '10px 20px',
@@ -434,46 +333,7 @@ function App() {
                     margin: '5px'
                   }}
                 >
-                  🏆 Play Again
-                </button>
-              </div>
-            )}
-
-            {gameState === 'lost' && (
-              <div style={{
-                background: '#f8d7da',
-                padding: '20px',
-                borderRadius: '8px',
-                border: '2px solid #f5c6cb'
-              }}>
-                <div style={{
-                  fontSize: '36px',
-                  marginBottom: '10px'
-                }}>
-                  💥 GAME OVER 💥
-                </div>
-                <p>You moved or put the phone down!</p>
-                <p>Time survived: {finalGameTime.current.toFixed(1)} seconds</p>
-                {finalGameTime.current > bestTime && (
-                  <p style={{ color: '#28a745', fontWeight: 'bold' }}>
-                    🎉 New personal best!
-                  </p>
-                )}
-                <button 
-                  onClick={resetGame}
-                  style={{
-                    background: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    padding: '10px 20px',
-                    borderRadius: '20px',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    fontWeight: 'bold',
-                    margin: '5px'
-                  }}
-                >
-                  🔄 Try Again
+                  {gameTime > bestTime ? '🏆 Play Again' : '🔄 Try Again'}
                 </button>
               </div>
             )}
