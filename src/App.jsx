@@ -14,9 +14,9 @@ function App() {
   
   const lastAcceleration = useRef({ x: 0, y: 0, z: 0 })
   const timerRef = useRef(null)
-  const movementThreshold = 1.0  // Reduced from 2.0 - more sensitive to movement
-  const holdingThreshold = 0.1   // Increased from 0.05 - more lenient
-  const failureGracePeriod = 300  // 0.3 seconds grace period before failing
+  const movementThreshold = 0.5  // More sensitive to movement - harder to stay still
+  const holdingThreshold = 0.05  // More strict holding detection
+  const failureGracePeriod = 150  // 0.15 seconds grace period - less forgiving
   const failureTimeoutRef = useRef(null)
 
   const handleMotion = (event) => {
@@ -50,9 +50,9 @@ function App() {
     const expectedGravity = 9.8
     const gravityDeviation = Math.abs(gravityMagnitude - expectedGravity)
     
-    // More lenient holding detection
-    const hasReasonableGravity = gravityDeviation < 5  // Increased from 3
-    const hasSomeActivity = totalDelta > holdingThreshold || gravityDeviation > 1.0  // More lenient
+    // Stricter holding detection
+    const hasReasonableGravity = gravityDeviation < 3  // More strict gravity detection
+    const hasSomeActivity = totalDelta > holdingThreshold || gravityDeviation > 0.5  // More strict
     
     if (hasReasonableGravity && hasSomeActivity) {
       setIsHolding(true)
