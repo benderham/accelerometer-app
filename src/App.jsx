@@ -180,9 +180,9 @@ function App() {
             <p>Permission was denied. You can try again or check your Safari settings.</p>
             <button 
               onClick={resetPermission}
-              className="challenge-button"
+              className="start-button"
             >
-              Try Again
+              TRY AGAIN
             </button>
           </div>
         </div>
@@ -196,9 +196,9 @@ function App() {
             <button 
               onClick={handleUserGesture}
               disabled={isRequesting}
-              className="challenge-button"
+              className="start-button"
             >
-              {isRequesting ? 'Requesting...' : 'Allow Motion Access'}
+              {isRequesting ? 'REQUESTING...' : 'ALLOW MOTION ACCESS'}
             </button>
             <p><small>On iOS, you may need to tap this button to trigger the permission prompt.</small></p>
           </div>
@@ -209,12 +209,12 @@ function App() {
         <>
           {gameState === 'waiting' && (
             <div className="challenge-screen">
-              <h1 className="challenge-title">How long can you stay still and do Nothing?</h1>
+              <h1 className="challenge-title">DO NOTHING</h1>
               <button 
                 onClick={startGame}
-                className="challenge-button"
+                className="start-button"
               >
-                Start Challenge
+                START
               </button>
             </div>
           )}
@@ -223,8 +223,11 @@ function App() {
 
           {gameState === 'playing' && (
             <div className="timer-screen">
+              <div className="vertical-text">DOING NOTHING FOR</div>
               <div className="timer-display">
-                <h1 className="timer-text">{formatTime(timer)}</h1>
+                <div className="timer-line">{Math.floor(timer / 60).toString().padStart(2, '0')}</div>
+                <div className="timer-line">{Math.floor(timer % 60).toString().padStart(2, '0')}</div>
+                <div className="timer-line">{(timer % 1 * 10).toFixed(0)}</div>
               </div>
             </div>
           )}
@@ -236,12 +239,19 @@ function App() {
               {bestTime > 0 && (
                 <p className="best-time">Best time: {formatTime(bestTime)}</p>
               )}
-              <button 
-                onClick={tryAgain}
-                className="challenge-button"
-              >
-                Try Again
-              </button>
+              <div className="button-group">
+                <button 
+                  onClick={tryAgain}
+                  className="start-button"
+                >
+                  TRY AGAIN
+                </button>
+                <button 
+                  className="start-button"
+                >
+                  SHARE
+                </button>
+              </div>
             </div>
           )}
         </>
